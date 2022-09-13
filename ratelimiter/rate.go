@@ -42,9 +42,9 @@ func (adaptor *RateAdaptor) Wait(ctx context.Context, returnIfUnavailable bool) 
 func (adaptor *RateAdaptor) SetLimit(limit uint32) {
 	adaptor.cond.L.Lock()
 	adaptor.limit = limit
-	adaptor.cond.L.Unlock()
 	adaptor.limiter.SetLimit(rate.Limit(limit))
 	adaptor.limiter.SetBurst(int(limit))
+	adaptor.cond.L.Unlock()
 	if limit > 0 {
 		adaptor.cond.Broadcast()
 	}
