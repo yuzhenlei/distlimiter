@@ -2,9 +2,12 @@ package distlimiter
 
 import (
 	"os/exec"
+	"sort"
+	"sync"
 )
 
 type Peer struct {
+	mu sync.RWMutex
 	id       string
 	qps      uint32
 	totalQPS uint32
@@ -29,28 +32,34 @@ func (peer *Peer) GetId() string {
 }
 
 func (peer *Peer) GetQPS() uint32 {
+	peer.mu.RLock()
+	defer peer.mu.RUnlock()
 	return peer.qps
 }
 
 func (peer *Peer) AdjustQPS(peerIDs []string) {
-	// TODO 根据peerIDs大小决定余数qps的分配
-	peer.qps = peer.totalQPS / uint32(len(peerIDs))
+	peer.mu.Lock()
+	defer peer.mu.Unlock()
+	peerCount := uint32(len(peerIDs))
+	peer.qps = peer.totalQPS / peerCount
+	sort.Strings(peerIDs)
+	mod := int(peer.totalQPS % peerCount)
+	for i := 0; i < mod; i++ {
+		if peerIDs[i] == peer.GetId() {
+			peer.qps++
+		}
+	}
 }
 
 func (peer *Peer) Send(callback func(error)) {
-	if err := peer.remote.Send(peer.GetId()); err != nil {
-		callback(err)
-		return
-	}
-	callback(nil)
+	err := peer.remote.Send(peer.GetId())
+	callback(err)
 }
 
 func (peer *Peer) Pull(callback func(error)) {
 	ids, err := peer.remote.Pull()
-	if err != nil {
-		callback(err)
-		return
+	if err == nil {
+		peer.AdjustQPS(ids)
 	}
-	peer.AdjustQPS(ids)
-	callback(nil)
+	callback(err)
 }
