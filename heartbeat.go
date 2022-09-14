@@ -5,17 +5,17 @@ import (
 )
 
 type Heartbeat struct {
-	distlimiter *DistLimiter
+	peer *Peer
 	interval time.Duration // second
 }
 
-func NewHeartbeat(interval int, distlimiter *DistLimiter) *Heartbeat {
+func NewHeartbeat(interval time.Duration, peer *Peer) *Heartbeat {
 	if interval < 1 {
 		interval = 1
 	}
 	return &Heartbeat{
-		distlimiter: distlimiter,
-		interval: time.Duration(interval) * time.Second,
+		peer: peer,
+		interval: interval,
 	}
 }
 
@@ -25,8 +25,8 @@ func (hb *Heartbeat) Go() {
 		for {
 			select {
 			case <-tick:
-				hb.distlimiter.Pull()
-				hb.distlimiter.Send()
+				hb.peer.Pull()
+				hb.peer.Send()
 			}
 		}
 	}()

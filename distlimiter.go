@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/yuzhenlei/distlimiter/ratelimiter"
 	"github.com/yuzhenlei/distlimiter/remotestore"
+	"time"
 )
 
 var (
@@ -11,8 +12,8 @@ var (
 )
 
 type RemoteStore interface {
-	Send(string) error
-	Pull() ([]string, error)
+	Send(now time.Time, entry string) error
+	Pull(min time.Time, max time.Time) ([]string, error)
 }
 
 type RateLimiter interface {
@@ -36,11 +37,13 @@ func NewDistLimiter(totalQPS uint32, remote RemoteStore, limiter RateLimiter) *D
 	}
 	distlimiter := &DistLimiter{}
 	distlimiter.limiter = limiter
-	distlimiter.heartbeat = NewHeartbeat(defaultHeartbeatInterval, distlimiter)
 	distlimiter.peer = NewPeer(totalQPS, remote)
-
-	distlimiter.heartbeat.Go()
-
+	distlimiter.peer.onSendDone = func(err error) {
+		distlimiter.onSendDone(err)
+	}
+	distlimiter.peer.onSendDone = func(err error) {
+		distlimiter.onSendDone(err)
+	}
 	return distlimiter
 }
 
@@ -48,22 +51,18 @@ func (dlimiter *DistLimiter) Wait(ctx context.Context, returnIfUnavailable bool)
 	return dlimiter.limiter.Wait(ctx, returnIfUnavailable)
 }
 
-func (dlimiter *DistLimiter) Send() {
-	onSendDone := func(err error) {
-		if err != nil {
-			dlimiter.limiter.SetLimit(0)
-		}
+func (dlimiter *DistLimiter) onSendDone(err error) {
+	if err != nil {
+		dlimiter.limiter.SetLimit(0)
 	}
-	dlimiter.peer.Send(onSendDone)
 }
 
-func (dlimiter *DistLimiter) Pull() {
-	onPullDone := func(err error) {
-		if err != nil {
-			dlimiter.limiter.SetLimit(0)
-		} else {
-			dlimiter.limiter.SetLimit(dlimiter.peer.GetQPS())
-		}
+func (dlimiter *DistLimiter) onPullDone(err error) {
+	if err != nil {
+		dlimiter.limiter.SetLimit(0)
+	} else {
+		dlimiter.limiter.SetLimit(dlimiter.peer.GetQPS())
 	}
-	dlimiter.peer.Pull(onPullDone)
 }
+
+// TODO 需要一个Close方法吗

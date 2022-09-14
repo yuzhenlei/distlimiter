@@ -4,6 +4,7 @@ import (
 	"os/exec"
 	"sort"
 	"sync"
+	"time"
 )
 
 type Peer struct {
@@ -12,6 +13,10 @@ type Peer struct {
 	qps      uint32
 	totalQPS uint32
 	remote RemoteStore
+	heartbeatInterval time.Duration
+	heartbeat *Heartbeat
+	onSendDone func(error)
+	onPullDone func(error)
 }
 
 func NewPeer(totalQPS uint32, remote RemoteStore) *Peer {
@@ -19,12 +24,16 @@ func NewPeer(totalQPS uint32, remote RemoteStore) *Peer {
 	if err != nil {
 		panic(err.Error())
 	}
-	return &Peer{
+	peer := &Peer{
 		id: string(uuid),
 		qps: 0,
 		totalQPS: totalQPS,
 		remote: remote,
+		heartbeatInterval: time.Duration(defaultHeartbeatInterval) * time.Second,
 	}
+	peer.heartbeat = NewHeartbeat(peer.heartbeatInterval, peer)
+	peer.heartbeat.Go()
+	return peer
 }
 
 func (peer *Peer) GetId() string {
@@ -51,15 +60,21 @@ func (peer *Peer) AdjustQPS(peerIDs []string) {
 	}
 }
 
-func (peer *Peer) Send(callback func(error)) {
-	err := peer.remote.Send(peer.GetId())
-	callback(err)
+func (peer *Peer) Send() {
+	err := peer.remote.Send(time.Now(), peer.GetId())
+	if peer.onSendDone != nil {
+		peer.onSendDone(err)
+	}
 }
 
-func (peer *Peer) Pull(callback func(error)) {
-	ids, err := peer.remote.Pull()
+func (peer *Peer) Pull() {
+	min := time.Now().Add(-peer.heartbeatInterval)
+	max := time.Now()
+	ids, err := peer.remote.Pull(min, max)
 	if err == nil {
 		peer.AdjustQPS(ids)
 	}
-	callback(err)
+	if peer.onPullDone != nil {
+		peer.onPullDone(err)
+	}
 }
