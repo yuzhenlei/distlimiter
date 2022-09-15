@@ -1,6 +1,7 @@
 package distlimiter
 
 import (
+	"log"
 	"os/exec"
 	"sort"
 	"sync"
@@ -47,8 +48,12 @@ func (peer *Peer) GetQPS() uint32 {
 }
 
 func (peer *Peer) AdjustQPS(peerIDs []string) {
+	if len(peerIDs) == 0 {
+		return
+	}
 	peer.mu.Lock()
 	defer peer.mu.Unlock()
+
 	peerCount := uint32(len(peerIDs))
 	peer.qps = peer.totalQPS / peerCount
 	sort.Strings(peerIDs)
@@ -58,8 +63,10 @@ func (peer *Peer) AdjustQPS(peerIDs []string) {
 			peer.qps++
 		}
 	}
+	log.Printf("curr qps: %d\n", peer.qps)
 }
 
+// FIXME 需要清理报备历史
 func (peer *Peer) Send() {
 	err := peer.remote.Send(time.Now(), peer.GetId())
 	if peer.onSendDone != nil {

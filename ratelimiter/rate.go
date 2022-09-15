@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"golang.org/x/time/rate"
+	"log"
 	"sync"
 	"time"
 )
@@ -46,7 +47,6 @@ func (adaptor *RateAdaptor) Wait(ctx context.Context, returnIfUnavailable bool) 
 		adaptor.cond.Wait()
 	}
 	defer adaptor.cond.L.Unlock()
-	// FIXME 这里如果limit又重新为0，就bug了
 	if err := adaptor.limiter.Wait(ctx); err != nil {
 		return err
 	}
@@ -56,6 +56,7 @@ func (adaptor *RateAdaptor) Wait(ctx context.Context, returnIfUnavailable bool) 
 func (adaptor *RateAdaptor) SetLimit(limit uint32) {
 	adaptor.cond.L.Lock()
 	adaptor.limit = limit
+	log.Printf("curr adaptor limit: %d\n", adaptor.limit)
 	adaptor.limiter.SetLimit(rate.Limit(limit))
 	adaptor.limiter.SetBurst(int(limit))
 	adaptor.cond.L.Unlock()

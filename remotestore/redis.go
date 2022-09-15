@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+// TODO WithOption
+
 type RedisAdaptor struct {
 	conn redisclient.Conn
 	key string

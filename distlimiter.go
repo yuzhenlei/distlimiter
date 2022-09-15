@@ -21,6 +21,8 @@ type RateLimiter interface {
 	SetLimit(uint32)
 }
 
+// TODO WithOption
+
 type DistLimiter struct {
 	limiter RateLimiter
 	heartbeat *Heartbeat
@@ -41,8 +43,8 @@ func NewDistLimiter(totalQPS uint32, remote RemoteStore, limiter RateLimiter) *D
 	distlimiter.peer.onSendDone = func(err error) {
 		distlimiter.onSendDone(err)
 	}
-	distlimiter.peer.onSendDone = func(err error) {
-		distlimiter.onSendDone(err)
+	distlimiter.peer.onPullDone = func(err error) {
+		distlimiter.onPullDone(err)
 	}
 	return distlimiter
 }
