@@ -15,25 +15,36 @@ type Peer struct {
 	totalQPS uint32
 	remote RemoteStore
 	heartbeatInterval time.Duration
-	heartbeat *Heartbeat
 	onSendDone func(error)
 	onPullDone func(error)
 }
 
-func NewPeer(totalQPS uint32, remote RemoteStore) *Peer {
-	uuid, err := exec.Command("/usr/bin/uuidgen").Output()
-	if err != nil {
-		panic(err.Error())
+type peerOptions struct {
+	Id string
+	HeartbeatSeconds uint32
+	OnSendDone func(error)
+	OnPullDone func(error)
+}
+
+func NewPeer(totalQPS uint32, remote RemoteStore, options *peerOptions) *Peer {
+	id := options.Id
+	if id == "" {
+		id = GenUUID()
+	}
+	seconds := options.HeartbeatSeconds
+	if seconds < 1 {
+		seconds = defaultHeartbeatSeconds
 	}
 	peer := &Peer{
-		id: string(uuid),
+		id: id,
 		qps: 0,
 		totalQPS: totalQPS,
 		remote: remote,
-		heartbeatInterval: time.Duration(defaultHeartbeatInterval) * time.Second,
+		heartbeatInterval: time.Duration(seconds) * time.Second,
+		onSendDone: options.OnSendDone,
+		onPullDone: options.OnPullDone,
 	}
-	peer.heartbeat = NewHeartbeat(peer.heartbeatInterval, peer)
-	peer.heartbeat.Go()
+	peer.heartbeat()
 	return peer
 }
 
@@ -84,4 +95,25 @@ func (peer *Peer) Pull() {
 	if peer.onPullDone != nil {
 		peer.onPullDone(err)
 	}
+}
+
+func (peer *Peer) heartbeat() {
+	go func() {
+		tick := time.Tick(peer.heartbeatInterval)
+		for {
+			select {
+			case <-tick:
+				peer.Pull()
+				peer.Send()
+			}
+		}
+	}()
+}
+
+func GenUUID() string {
+	uuid, err := exec.Command("/usr/bin/uuidgen").Output()
+	if err != nil {
+		panic(err.Error())
+	}
+	return string(uuid)
 }

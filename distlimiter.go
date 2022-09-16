@@ -7,8 +7,17 @@ import (
 	"time"
 )
 
+const (
+	defaultHeartbeatSeconds = 30
+)
+
 var (
-	defaultHeartbeatInterval = 10
+	defaultRemoteStore = func(options *remotestore.RedisOptions) RemoteStore {
+		return remotestore.NewRedis(options)
+	}
+	defaultLimiter = func(options *ratelimiter.RateOptions) RateLimiter {
+		return ratelimiter.NewRate(options)
+	}
 )
 
 type RemoteStore interface {
@@ -21,31 +30,46 @@ type RateLimiter interface {
 	SetLimit(uint32)
 }
 
-// TODO WithOption
-
 type DistLimiter struct {
 	limiter RateLimiter
-	heartbeat *Heartbeat
 	remote RemoteStore
 	peer *Peer
 }
 
-func NewDistLimiter(totalQPS uint32, remote RemoteStore, limiter RateLimiter) *DistLimiter {
-	if remote == nil {
-		remote = remotestore.NewRedis("foobar")
-	}
-	if limiter == nil {
-		limiter = ratelimiter.NewRate(0)
-	}
+type Options struct {
+	Id string
+	TotalQPS uint32
+	HeartbeatSeconds uint32
+	Limiter RateLimiter
+	Remote RemoteStore
+	RedisAddr string
+	RedisKey string
+}
+
+func NewDistLimiter(options *Options) *DistLimiter {
 	distlimiter := &DistLimiter{}
+
+	limiter := options.Limiter
+	if options.Limiter == nil {
+		limiter = defaultLimiter(nil)
+	}
 	distlimiter.limiter = limiter
-	distlimiter.peer = NewPeer(totalQPS, remote)
-	distlimiter.peer.onSendDone = func(err error) {
-		distlimiter.onSendDone(err)
+
+	remote := options.Remote
+	if remote == nil {
+		remote = defaultRemoteStore(&remotestore.RedisOptions{
+			Addr: options.RedisAddr,
+			Key:  options.RedisKey,
+		})
 	}
-	distlimiter.peer.onPullDone = func(err error) {
-		distlimiter.onPullDone(err)
+	peerOptions := &peerOptions{
+		Id:               options.Id,
+		HeartbeatSeconds: options.HeartbeatSeconds,
+		OnSendDone:       distlimiter.onSendDone,
+		OnPullDone:       distlimiter.onPullDone,
 	}
+	distlimiter.peer = NewPeer(options.TotalQPS, remote, peerOptions)
+
 	return distlimiter
 }
 

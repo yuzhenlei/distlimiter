@@ -17,9 +17,13 @@ type RateAdaptor struct {
 	limiter *rate.Limiter
 }
 
-func NewRate(burst uint32) *RateAdaptor {
+type RateOptions struct {
+	// nothing
+}
+
+func NewRate(options *RateOptions) *RateAdaptor {
 	return &RateAdaptor{
-		limiter: rate.NewLimiter(0, int(burst)),
+		limiter: rate.NewLimiter(0, 0),
 		cond: sync.NewCond(&sync.Mutex{}),
 	}
 }

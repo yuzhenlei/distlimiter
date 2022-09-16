@@ -6,26 +6,46 @@ import (
 	"time"
 )
 
-// TODO WithOption
-
 type RedisAdaptor struct {
 	conn redisclient.Conn
 	key string
 }
 
-func NewRedis(key string) *RedisAdaptor {
-	conn, err := redisclient.Dial("tcp", "127.0.0.1:6379")
-	if err != nil {
-		panic(fmt.Sprintf("redis connect fail: %s", err.Error()))
+type RedisOptions struct {
+	Addr string
+	Key string
+}
+
+func NewRedis(options *RedisOptions) *RedisAdaptor {
+	if options.Addr == "" {
+		panic("redis addr must specified")
+	}
+	if options.Key == "" {
+		panic("redis key must specified")
 	}
 	return &RedisAdaptor{
-		conn: conn,
-		key: key,
+		key: options.Key,
 	}
 }
 
+func (redis *RedisAdaptor) getConn() (redisclient.Conn, error) {
+	if redis.conn != nil {
+		return redis.conn, nil
+	}
+	conn, err := redisclient.Dial("tcp", "127.0.0.1:6379")
+	if err != nil {
+		return nil, fmt.Errorf("redis connect fail")
+	}
+	redis.conn = conn
+	return conn, nil
+}
+
 func (redis *RedisAdaptor) Send(now time.Time, entry string) error {
-	_, err := redis.conn.Do("zadd", redis.key, now.Unix(), entry)
+	conn, err := redis.getConn()
+	if err != nil {
+		return err
+	}
+	_, err = conn.Do("zadd", redis.key, now.Unix(), entry)
 	if err != nil {
 		return fmt.Errorf("zadd error: %s", err.Error())
 	}
@@ -33,7 +53,11 @@ func (redis *RedisAdaptor) Send(now time.Time, entry string) error {
 }
 
 func (redis *RedisAdaptor) Pull(min time.Time, max time.Time) ([]string, error) {
-	ids, err := redisclient.Strings(redis.conn.Do("zrangebyscore", redis.key, min.Unix(), max.Unix()))
+	conn, err := redis.getConn()
+	if err != nil {
+		return nil, err
+	}
+	ids, err := redisclient.Strings(conn.Do("zrangebyscore", redis.key, min.Unix(), max.Unix()))
 	if err != nil {
 		return nil, fmt.Errorf("zrangebyscore error: %s", err.Error())
 	}
