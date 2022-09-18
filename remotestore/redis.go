@@ -3,6 +3,7 @@ package remotestore
 import (
 	"fmt"
 	redisclient "github.com/gomodule/redigo/redis"
+	"log"
 	"time"
 )
 
@@ -43,6 +44,7 @@ func (redis *RedisAdaptor) getConn() (redisclient.Conn, error) {
 func (redis *RedisAdaptor) Send(now time.Time, entry string) error {
 	conn, err := redis.getConn()
 	if err != nil {
+		log.Printf("get redis conn fail: %s", err.Error())
 		return err
 	}
 	_, err = conn.Do("zadd", redis.key, now.Unix(), entry)

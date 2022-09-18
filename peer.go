@@ -74,7 +74,7 @@ func (peer *Peer) AdjustQPS(peerIDs []string) {
 			peer.qps++
 		}
 	}
-	log.Printf("curr qps: %d\n", peer.qps)
+	log.Printf("id[%s] curr qps: %d\n", peer.id, peer.qps)
 }
 
 // FIXME 需要清理报备历史
