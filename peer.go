@@ -64,15 +64,25 @@ func (peer *Peer) AdjustQPS(peerIDs []string) {
 	}
 	peer.mu.Lock()
 	defer peer.mu.Unlock()
-
-	peerCount := uint32(len(peerIDs))
-	peer.qps = peer.totalQPS / peerCount
-	sort.Strings(peerIDs)
-	mod := int(peer.totalQPS % peerCount)
-	for i := 0; i < mod; i++ {
-		if peerIDs[i] == peer.GetId() {
-			peer.qps++
+	isFoundMe := false
+	for _, peerId := range peerIDs {
+		if peerId == peer.GetId() {
+			isFoundMe = true
+			break
 		}
+	}
+	if isFoundMe {
+		sort.Strings(peerIDs)
+		peerCount := uint32(len(peerIDs))
+		peer.qps = peer.totalQPS / peerCount
+		mod := int(peer.totalQPS % peerCount)
+		for i := 0; i < mod; i++ {
+			if peerIDs[i] == peer.GetId() {
+				peer.qps++
+			}
+		}
+	} else {
+		peer.qps = 0
 	}
 	log.Printf("id[%s] curr qps: %d\n", peer.id, peer.qps)
 }
