@@ -59,11 +59,12 @@ func (peer *Peer) GetQPS() uint32 {
 }
 
 func (peer *Peer) AdjustQPS(peerIDs []string) {
-	if len(peerIDs) == 0 {
-		return
-	}
 	peer.mu.Lock()
 	defer peer.mu.Unlock()
+	if len(peerIDs) == 0 {
+		peer.qps = 0
+		return
+	}
 	isFoundMe := false
 	for _, peerId := range peerIDs {
 		if peerId == peer.GetId() {
@@ -84,12 +85,15 @@ func (peer *Peer) AdjustQPS(peerIDs []string) {
 	} else {
 		peer.qps = 0
 	}
-	log.Printf("id[%s] curr qps: %d\n", peer.id, peer.qps)
+	log.Printf("peer[%s] curr qps: %d\n", peer.GetId(), peer.qps)
 }
 
 // FIXME 需要清理报备历史
 func (peer *Peer) Send() {
 	err := peer.remote.Send(time.Now(), peer.GetId())
+	if err != nil {
+		log.Printf("peer[%s] send fail: %s", peer.GetId(), err.Error())
+	}
 	if peer.onSendDone != nil {
 		peer.onSendDone(err)
 	}
@@ -99,9 +103,10 @@ func (peer *Peer) Pull() {
 	min := time.Now().Add(-peer.heartbeatInterval)
 	max := time.Now()
 	ids, err := peer.remote.Pull(min, max)
-	if err == nil {
-		peer.AdjustQPS(ids)
+	if err != nil {
+		log.Printf("peer[%s] pull fail: %s", peer.GetId(), err.Error())
 	}
+	peer.AdjustQPS(ids)
 	if peer.onPullDone != nil {
 		peer.onPullDone(err)
 	}
