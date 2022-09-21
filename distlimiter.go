@@ -33,18 +33,18 @@ type RateLimiter interface {
 
 type DistLimiter struct {
 	limiter RateLimiter
-	remote RemoteStore
-	peer *Peer
+	remote  RemoteStore
+	peer    *Peer
 }
 
 type Options struct {
-	Id string
-	TotalQPS uint32
+	Id               string
+	TotalQPS         uint32
 	HeartbeatSeconds uint32
-	Limiter RateLimiter
-	Remote RemoteStore
-	RedisAddr string
-	RedisKey string
+	Limiter          RateLimiter
+	Remote           RemoteStore
+	RedisAddr        string
+	RedisKey         string
 }
 
 func NewDistLimiter(options *Options) *DistLimiter {

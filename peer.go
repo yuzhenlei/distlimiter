@@ -9,27 +9,27 @@ import (
 )
 
 type Peer struct {
-	mu sync.RWMutex
-	id       string
-	qps      uint32
-	totalQPS uint32
-	remote RemoteStore
-	peerIDs []string
+	mu                sync.RWMutex
+	id                string
+	qps               uint32
+	totalQPS          uint32
+	remote            RemoteStore
+	peerIDs           []string
 	heartbeatInterval time.Duration
-	clearInterval time.Duration
-	lastClearTime time.Time
-	onSendDone func(error)
-	onPullDone func(error)
-	onClear func(until time.Time) error
+	clearInterval     time.Duration
+	lastClearTime     time.Time
+	onSendDone        func(error)
+	onPullDone        func(error)
+	onClear           func(until time.Time) error
 }
 
 type peerOptions struct {
-	Id string
+	Id               string
 	HeartbeatSeconds uint32
-	ClearInterval time.Duration
-	OnSendDone func(error)
-	OnPullDone func(error)
-	OnClear func(until time.Time) error
+	ClearInterval    time.Duration
+	OnSendDone       func(error)
+	OnPullDone       func(error)
+	OnClear          func(until time.Time) error
 }
 
 func NewPeer(totalQPS uint32, remote RemoteStore, options *peerOptions) *Peer {
@@ -46,15 +46,15 @@ func NewPeer(totalQPS uint32, remote RemoteStore, options *peerOptions) *Peer {
 		clearInterval = 100 * time.Duration(seconds) * time.Second
 	}
 	peer := &Peer{
-		id: id,
-		qps: 0,
-		totalQPS: totalQPS,
-		remote: remote,
+		id:                id,
+		qps:               0,
+		totalQPS:          totalQPS,
+		remote:            remote,
 		heartbeatInterval: time.Duration(seconds) * time.Second,
-		clearInterval: clearInterval,
-		onSendDone: options.OnSendDone,
-		onPullDone: options.OnPullDone,
-		onClear: options.OnClear,
+		clearInterval:     clearInterval,
+		onSendDone:        options.OnSendDone,
+		onPullDone:        options.OnPullDone,
+		onClear:           options.OnClear,
 	}
 	peer.heartbeat()
 	return peer

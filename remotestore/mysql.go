@@ -3,7 +3,6 @@ package remotestore
 import "time"
 
 type MySQLAdaptor struct {
-
 }
 
 func NewMySQL() *MySQLAdaptor {

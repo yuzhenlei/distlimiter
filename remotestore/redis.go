@@ -8,12 +8,12 @@ import (
 
 type RedisAdaptor struct {
 	conn redisclient.Conn
-	key string
+	key  string
 }
 
 type RedisOptions struct {
 	Addr string
-	Key string
+	Key  string
 }
 
 func NewRedis(options *RedisOptions) *RedisAdaptor {

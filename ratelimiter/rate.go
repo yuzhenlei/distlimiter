@@ -12,8 +12,8 @@ import (
 // https://pkg.go.dev/golang.org/x/time/rate
 
 type RateAdaptor struct {
-	cond *sync.Cond
-	limit uint32
+	cond    *sync.Cond
+	limit   uint32
 	limiter *rate.Limiter
 }
 
@@ -24,7 +24,7 @@ type RateOptions struct {
 func NewRate(options *RateOptions) *RateAdaptor {
 	return &RateAdaptor{
 		limiter: rate.NewLimiter(0, 0),
-		cond: sync.NewCond(&sync.Mutex{}),
+		cond:    sync.NewCond(&sync.Mutex{}),
 	}
 }
 
