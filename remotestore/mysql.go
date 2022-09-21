@@ -17,3 +17,7 @@ func (mysql *MySQLAdaptor) Send(now time.Time, entry string) error {
 func (mysql *MySQLAdaptor) Pull(min time.Time, max time.Time) ([]string, error) {
 	return nil, nil
 }
+
+func (mysql *MySQLAdaptor) Clear(until time.Time) error {
+	return nil
+}

@@ -63,3 +63,7 @@ func (redis *RedisAdaptor) Pull(min time.Time, max time.Time) ([]string, error) 
 	}
 	return ids, nil
 }
+
+func (redis *RedisAdaptor) Clear(until time.Time) error {
+	return nil
+}

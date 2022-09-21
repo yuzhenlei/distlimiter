@@ -14,16 +14,22 @@ type Peer struct {
 	qps      uint32
 	totalQPS uint32
 	remote RemoteStore
+	peerIDs []string
 	heartbeatInterval time.Duration
+	clearInterval time.Duration
+	lastClearTime time.Time
 	onSendDone func(error)
 	onPullDone func(error)
+	onClear func(until time.Time) error
 }
 
 type peerOptions struct {
 	Id string
 	HeartbeatSeconds uint32
+	ClearInterval time.Duration
 	OnSendDone func(error)
 	OnPullDone func(error)
+	OnClear func(until time.Time) error
 }
 
 func NewPeer(totalQPS uint32, remote RemoteStore, options *peerOptions) *Peer {
@@ -35,14 +41,20 @@ func NewPeer(totalQPS uint32, remote RemoteStore, options *peerOptions) *Peer {
 	if seconds < 1 {
 		seconds = defaultHeartbeatSeconds
 	}
+	clearInterval := options.ClearInterval
+	if clearInterval <= 0 {
+		clearInterval = 100 * time.Duration(seconds) * time.Second
+	}
 	peer := &Peer{
 		id: id,
 		qps: 0,
 		totalQPS: totalQPS,
 		remote: remote,
 		heartbeatInterval: time.Duration(seconds) * time.Second,
+		clearInterval: clearInterval,
 		onSendDone: options.OnSendDone,
 		onPullDone: options.OnPullDone,
+		onClear: options.OnClear,
 	}
 	peer.heartbeat()
 	return peer
@@ -65,6 +77,8 @@ func (peer *Peer) AdjustQPS(peerIDs []string) {
 		peer.qps = 0
 		return
 	}
+	sort.Strings(peerIDs)
+	peer.peerIDs = peerIDs
 	isFoundMe := false
 	for _, peerId := range peerIDs {
 		if peerId == peer.GetId() {
@@ -73,7 +87,6 @@ func (peer *Peer) AdjustQPS(peerIDs []string) {
 		}
 	}
 	if isFoundMe {
-		sort.Strings(peerIDs)
 		peerCount := uint32(len(peerIDs))
 		peer.qps = peer.totalQPS / peerCount
 		mod := int(peer.totalQPS % peerCount)
@@ -88,7 +101,6 @@ func (peer *Peer) AdjustQPS(peerIDs []string) {
 	log.Printf("peer[%s] curr qps: %d\n", peer.GetId(), peer.qps)
 }
 
-// FIXME 需要清理报备历史
 func (peer *Peer) Send() {
 	err := peer.remote.Send(time.Now(), peer.GetId())
 	if err != nil {
@@ -112,6 +124,22 @@ func (peer *Peer) Pull() {
 	}
 }
 
+func (peer *Peer) clear() {
+	peer.mu.Lock()
+	isSelected := false
+	lastClearTime := peer.lastClearTime
+	if len(peer.peerIDs) > 0 && peer.peerIDs[0] == peer.GetId() &&
+		peer.lastClearTime.Add(peer.clearInterval).Before(time.Now()) {
+		isSelected = true
+		peer.lastClearTime = time.Now()
+	}
+	peer.mu.Unlock()
+	if isSelected && peer.onClear != nil {
+		log.Printf("call onClear(until: %s)", lastClearTime.Format(time.Stamp))
+		peer.onClear(lastClearTime)
+	}
+}
+
 func (peer *Peer) heartbeat() {
 	go func() {
 		tick := time.Tick(peer.heartbeatInterval)
@@ -120,6 +148,7 @@ func (peer *Peer) heartbeat() {
 			case <-tick:
 				peer.Pull()
 				peer.Send()
+				peer.clear()
 			}
 		}
 	}()

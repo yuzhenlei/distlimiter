@@ -1,5 +1,6 @@
 写单测
 报备历史清理
+修复redis.zset结构下peer后一次报备会覆盖前一次报备时间戳的问题，可能导致其他peer无法正常拉取到前一个时段的peer，影响qps计算
 remotestore:mysql支持
 close方法
 ...

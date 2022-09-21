@@ -23,6 +23,7 @@ var (
 type RemoteStore interface {
 	Send(now time.Time, entry string) error
 	Pull(min time.Time, max time.Time) ([]string, error)
+	Clear(util time.Time) error
 }
 
 type RateLimiter interface {
@@ -67,6 +68,7 @@ func NewDistLimiter(options *Options) *DistLimiter {
 		HeartbeatSeconds: options.HeartbeatSeconds,
 		OnSendDone:       distlimiter.onSendDone,
 		OnPullDone:       distlimiter.onPullDone,
+		OnClear:          remote.Clear,
 	}
 	distlimiter.peer = NewPeer(options.TotalQPS, remote, peerOptions)
 
