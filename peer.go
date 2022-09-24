@@ -82,13 +82,13 @@ func (peer *Peer) GetQPS() uint32 {
 }
 
 func (peer *Peer) AdjustQPS(peerIDs []string) {
+	sort.Strings(peerIDs)
 	peer.mu.Lock()
 	defer peer.mu.Unlock()
 	if len(peerIDs) == 0 {
 		peer.qps = 0
 		return
 	}
-	sort.Strings(peerIDs)
 	peer.peerIDs = peerIDs
 	isFoundMe := false
 	for _, peerId := range peerIDs {
