@@ -16,6 +16,8 @@ type Peer struct {
 	remote            RemoteStore
 	peerIDs           []string
 	heartbeatInterval time.Duration
+	heartbeatTimeout  time.Duration
+	heartbeatFail     bool
 	clearInterval     time.Duration
 	lastClearTime     time.Time
 	onSendDone        func(error)
@@ -24,12 +26,13 @@ type Peer struct {
 }
 
 type peerOptions struct {
-	Id               string
-	HeartbeatSeconds uint32
-	ClearInterval    time.Duration
-	OnSendDone       func(error)
-	OnPullDone       func(error)
-	OnClear          func(until time.Time) error
+	Id                      string
+	HeartbeatSeconds        uint32
+	HeartbeatTimeoutSeconds uint32
+	ClearInterval           time.Duration
+	OnSendDone              func(error)
+	OnPullDone              func(error)
+	OnClear                 func(until time.Time) error
 }
 
 func NewPeer(totalQPS uint32, remote RemoteStore, options *peerOptions) *Peer {
@@ -37,20 +40,28 @@ func NewPeer(totalQPS uint32, remote RemoteStore, options *peerOptions) *Peer {
 	if id == "" {
 		id = GenUUID()
 	}
-	seconds := options.HeartbeatSeconds
-	if seconds < 1 {
-		seconds = defaultHeartbeatSeconds
+	hbseconds := options.HeartbeatSeconds
+	if hbseconds < 1 {
+		hbseconds = defaultHeartbeatSeconds
+	}
+	hbtimeout := options.HeartbeatTimeoutSeconds
+	if hbtimeout == 0 {
+		hbtimeout = defaultHeartbeatTimeoutSeconds
+	}
+	if hbtimeout < hbseconds {
+		panic("heartbeat timeout must not less than interval")
 	}
 	clearInterval := options.ClearInterval
 	if clearInterval <= 0 {
-		clearInterval = 100 * time.Duration(seconds) * time.Second
+		clearInterval = 100 * time.Duration(hbseconds) * time.Second
 	}
 	peer := &Peer{
 		id:                id,
 		qps:               0,
 		totalQPS:          totalQPS,
 		remote:            remote,
-		heartbeatInterval: time.Duration(seconds) * time.Second,
+		heartbeatInterval: time.Duration(hbseconds) * time.Second,
+		heartbeatTimeout:  time.Duration(hbtimeout) * time.Second,
 		clearInterval:     clearInterval,
 		onSendDone:        options.OnSendDone,
 		onPullDone:        options.OnPullDone,
@@ -104,7 +115,10 @@ func (peer *Peer) AdjustQPS(peerIDs []string) {
 func (peer *Peer) Send() {
 	err := peer.remote.Send(time.Now(), peer.GetId())
 	if err != nil {
+		peer.heartbeatFail = true
 		log.Printf("peer[%s] send fail: %s", peer.GetId(), err.Error())
+	} else {
+		peer.heartbeatFail = false
 	}
 	if peer.onSendDone != nil {
 		peer.onSendDone(err)
@@ -112,8 +126,12 @@ func (peer *Peer) Send() {
 }
 
 func (peer *Peer) Pull() {
-	min := time.Now().Add(-peer.heartbeatInterval)
-	max := time.Now()
+	if peer.heartbeatFail {
+		return
+	}
+	min := time.Now().Add(-peer.heartbeatTimeout)
+	// max不取now的原因是，假如peerA.pull.time在peerB.send.time之前，但是peerB.send.time却提前到达了remote，造成pull不到的情况
+	max := time.Now().Add(peer.heartbeatTimeout)
 	ids, err := peer.remote.Pull(min, max)
 	if err != nil {
 		log.Printf("peer[%s] pull fail: %s", peer.GetId(), err.Error())
@@ -136,7 +154,9 @@ func (peer *Peer) clear() {
 	peer.mu.Unlock()
 	if isSelected && peer.onClear != nil {
 		log.Printf("call onClear(until: %s)", lastClearTime.Format(time.Stamp))
-		peer.onClear(lastClearTime)
+		if err := peer.onClear(lastClearTime); err != nil {
+			log.Printf("call onClear(until: %s) fail: %s", lastClearTime.Format(time.Stamp), err.Error())
+		}
 	}
 }
 

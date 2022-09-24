@@ -9,6 +9,7 @@ import (
 
 const (
 	defaultHeartbeatSeconds = 30
+	defaultHeartbeatTimeoutSeconds = 60
 )
 
 var (
